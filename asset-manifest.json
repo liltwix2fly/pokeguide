@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/pokeguide/static/css/main.45b7e4ac.css",
+    "main.js": "/pokeguide/static/js/main.90b12040.js",
+    "static/js/453.8aab9fa4.chunk.js": "/pokeguide/static/js/453.8aab9fa4.chunk.js",
+    "index.html": "/pokeguide/index.html",
+    "main.45b7e4ac.css.map": "/pokeguide/static/css/main.45b7e4ac.css.map",
+    "main.90b12040.js.map": "/pokeguide/static/js/main.90b12040.js.map",
+    "453.8aab9fa4.chunk.js.map": "/pokeguide/static/js/453.8aab9fa4.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.45b7e4ac.css",
+    "static/js/main.90b12040.js"
+  ]
+}
