@@ -701,3 +701,38 @@
 }
 .pg-lineage-text { color: var(--pg-text-muted); font-size: 12px; line-height: 1.5; margin: 2px 0 0; }
 .pg-lineage-text b { color: var(--pg-text); font-weight: 600; }
+
+.pg-gen-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.pg-select {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pg-text);
+  background: var(--pg-bg-card);
+  border: 1px solid var(--pg-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  outline: none;
+  cursor: pointer;
+}
+.pg-select:focus { border-color: var(--pg-accent); }
+ 
+.pg-region-empty {
+  background: var(--pg-bg-card);
+  border: 1px dashed var(--pg-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.pg-region-empty p {
+  color: var(--pg-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+.pg-region-empty b { color: var(--pg-text); }
