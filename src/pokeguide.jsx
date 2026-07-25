@@ -582,7 +582,7 @@ function GameSelectScreen({ onSelect, onBack}) {
   );
 }
 
-//pokemon selection grid
+//pokemon info selection grid
 
 function PokemonCard({mon, selected, onToggle, disabled}) {
   return (
