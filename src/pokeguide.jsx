@@ -320,7 +320,15 @@ const POKEDEX_GEN1 = [
 ];
 
 const POKEDEX_GEN2 = [
-    P(1, 152, "Chikorita", ["grass"], "starter", "Chosen as your starter from Professor Elm in New Bark Town.", null, null, 0)
+    P(1, 152, "Chikorita", ["grass"], "starter", "Chosen as your starter from Professor Elm in New Bark Town.", null, null, 0),
+    P(2, 153, "Bayleef", ["grass"], "evolve", "Evolves from Chikorita at level 16.", "Chikorita", null, 0),
+    P(3, 154, "Meganium", ["grass"], "evolve", "Evolves from Bayleef at level 32.", "Bayleef", null, 0),
+    P(4, 155, "Cyndaquil", ["fire"], "starter", "Chosen as your starter from Professor Elm in New Bark Town.", null, null, 0),
+    P(5, 156, "Quilava", ["fire"], "evolve", "Evolves from Cyndaquil at level 14.", "Cyndaquil", null, 0),
+    P(6, 157, "Typhlosion", ["fire"], "evolve", "Evolves from Quilava at level 36.", "Quilava", null, 0),
+    P(7, 158, "Totodile", ["water"], "starter", "Chosen as your starter from Professor Elm in New Bark Town.", null, null, 0),
+    P(8, 159, "Croconaw", ["water"], "evolve", "Evolves from Totodile at level 18.", "Totodile", null, 0),
+    P(9, 160, "Feraligatr", ["water"], "evolve", "Evolves from Croconaw at level 30.", "Croconaw", null, 0)
 ]
 
 const CATEGORY_ORDER = {
