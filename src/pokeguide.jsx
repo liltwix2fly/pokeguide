@@ -988,7 +988,7 @@ export default function PokeGuide() {
         <div className="pg-container pg-header-inner">
           <button className="pg-logo" onClick={goHome}>
             <span className="pg-logo-dot" />
-            <span className="pg-logo-text">POKÉ&nbsp;GUIDE</span>
+            <span className="pg-logo-text">POKÉ&nbsp;GUIDE V2</span>
             <span className="pg-logo-sub">team builder</span>
           </button>
           <button className="pg-icon-btn" onClick={() => setDark((d) => !d)} title="Toggle theme">
