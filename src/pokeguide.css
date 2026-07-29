@@ -56,11 +56,11 @@
 /* ---------------------------------------------------------------- */
 
 .pg-header {
-  position: sticky;
+  /*position: sticky;
   top: 0;
-  z-index: 30;
-  background: var(--pg-bg-elevated);
-  border-bottom: 1px solid var(--pg-border);
+  z-index: 30;*/
+ background: transparent; 
+  border-bottom: none;
 }
 .pg-header-inner {
   display: flex;
@@ -269,7 +269,7 @@
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 20px 45px -20px rgba(0, 0, 0, 0.4);
-  transition: transform 0.8s ease;
+  transition: transform 0.3s ease;
 }
 .pg-preview-card:hover { transform: translateY(-8px); }
 .pg-preview-sprite {
@@ -547,10 +547,90 @@
   border: 1px solid var(--pg-border);
   border-radius: 18px;
   padding: 20px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.pg-report-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--pg-accent);
+  box-shadow: 0 16px 32px -16px rgba(0, 0, 0, 0.35);
+}
+.pg-report-card:hover .pg-report-name {
+  color: var(--pg-accent);
 }
 @media (min-width: 640px) {
   .pg-report-card { flex-direction: row; }
 }
+
+/* ---------------------------------------------------------------- */
+/* Report screen — alternating timeline layout                       */
+/* ---------------------------------------------------------------- */
+
+.pg-page-timeline { max-width: 980px; }
+
+.pg-timeline {
+  position: relative;
+  padding: 8px 0;
+}
+.pg-timeline::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--pg-border);
+  transform: translateX(-50%);
+}
+
+.pg-timeline-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 32px 1fr;
+  align-items: start;
+  margin-bottom: 28px;
+}
+
+.pg-timeline-card-wrap { grid-column: 1; }
+.pg-timeline-row.pg-timeline-right .pg-timeline-card-wrap { grid-column: 3; }
+
+.pg-timeline-dot {
+  grid-column: 2;
+  justify-self: center;
+  width: 12px;
+  height: 12px;
+  margin-top: 28px;
+  border-radius: 999px;
+  background: var(--pg-bg);
+  border: 2px solid var(--pg-border);
+  position: relative;
+  z-index: 2;
+  /* Deliberately slower than the card's own hover transitions (0.18s) —
+     this is the one thing that should feel like it's "filling in" rather
+     than snapping over. */
+  transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+}
+/* Every Pokémon's dot lights up blue while you're hovering its card —
+   :hover on the row bubbles up from the card inside it, so this works
+   no matter where in the card you're hovering. */
+.pg-timeline-row:hover .pg-timeline-dot {
+  background: var(--pg-accent);
+  border-color: var(--pg-accent);
+  box-shadow: 0 0 0 4px rgba(24, 119, 242, 0.2);
+}
+
+/* Below the breakpoint there isn't room for two columns side by side,
+   so collapse to a single column with the line running down the left. */
+@media (max-width: 860px) {
+  .pg-timeline::before { left: 16px; }
+  .pg-timeline-row,
+  .pg-timeline-row.pg-timeline-right {
+    grid-template-columns: 32px 1fr;
+  }
+  .pg-timeline-row .pg-timeline-dot { grid-column: 1; margin-top: 28px; }
+  .pg-timeline-card-wrap,
+  .pg-timeline-row.pg-timeline-right .pg-timeline-card-wrap { grid-column: 2; }
+}
+
 .pg-report-left {
   display: flex;
   flex-direction: row;
@@ -591,6 +671,7 @@
   letter-spacing: -0.01em;
   color: var(--pg-text);
   margin: 0;
+  transition: color 0.18s ease;
 }
 .pg-report-num {
   font-family: 'JetBrains Mono', monospace;
@@ -701,7 +782,7 @@
 }
 .pg-lineage-text { color: var(--pg-text-muted); font-size: 12px; line-height: 1.5; margin: 2px 0 0; }
 .pg-lineage-text b { color: var(--pg-text); font-weight: 600; }
-
+/* Region dropdown — add this to pokeguide.css */
 .pg-gen-head {
   display: flex;
   align-items: center;
@@ -722,7 +803,7 @@
   cursor: pointer;
 }
 .pg-select:focus { border-color: var(--pg-accent); }
- 
+
 .pg-region-empty {
   background: var(--pg-bg-card);
   border: 1px dashed var(--pg-border);
