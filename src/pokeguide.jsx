@@ -580,7 +580,7 @@ useEffect(() => {
 
 function getHeadline(mon) {
   if (mon.category === "evolve" || mon.category === "stone" || mon.category === "trade") {
-    return `Evolve from ${mon.evolvesFrom}`;
+    return `Evolve from ${capitalize(mon.evolvesFrom)}`;
   }
   if (mon.category === "starter") return "Starter Pokémon";
   if (mon.category === "legendary") return "Legendary encounter";

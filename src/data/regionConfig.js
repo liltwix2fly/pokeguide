@@ -20,8 +20,8 @@ const regionConfig = {
       { id: "red", label: "Red", versionGroup: "red-blue", version: "red" },
       { id: "blue", label: "Blue", versionGroup: "red-blue", version: "blue" },
       { id: "yellow", label: "Yellow", versionGroup: "yellow", version: "yellow" },
-      { id: "firered", label: "FireRed", versionGroup: "firered-leafgreen", version: "firered", displayGeneration: 3},
-      { id: "leafgreen", label: "LeafGreen", versionGroup: "firered-leafgreen", version: "leafgreen", displayGeneration: 3},
+      { id: "firered", label: "FireRed", versionGroup: "firered-leafgreen", version: "firered", displayGeneration: 3 },
+      { id: "leafgreen", label: "LeafGreen", versionGroup: "firered-leafgreen", version: "leafgreen", displayGeneration: 3 },
     ],
   },
 
@@ -38,6 +38,9 @@ const regionConfig = {
     ],
   },
 
+  // regionConfig.js
+// ... (keep other regions as they are)
+
   hoenn: {
     generation: 3,
     pokedexSlug: "hoenn",
@@ -48,8 +51,8 @@ const regionConfig = {
         { id: "ruby", label: "Ruby", versionGroup: "ruby-sapphire", version: "ruby", dexId: "hoenn" },
         { id: "sapphire", label: "Sapphire", versionGroup: "ruby-sapphire", version: "sapphire", dexId: "hoenn" },
         { id: "emerald", label: "Emerald", versionGroup: "emerald", version: "emerald", dexId: "hoenn" },
-        { id: "firered", label: "FireRed", versionGroup: "firered-leafgreen", version: "firered", dexId: "kanto" }, // 👈 Use "kanto"
-        { id: "leafgreen", label: "LeafGreen", versionGroup: "firered-leafgreen", version: "leafgreen", dexId: "kanto" }, // 👈 Use "kanto"
+        { id: "firered", label: "FireRed", versionGroup: "firered-leafgreen", version: "firered", dexId: "kanto" },
+        { id: "leafgreen", label: "LeafGreen", versionGroup: "firered-leafgreen", version: "leafgreen", dexId: "kanto" },
     ]
   },
   sinnoh: {
@@ -84,12 +87,10 @@ const regionConfig = {
 export default regionConfig;
 
 export function getRegion(regionKeyOrSlug) {
-  // 1. Check if it matches a direct region key (e.g. "sinnoh")
   if (regionConfig[regionKeyOrSlug]) {
     return regionConfig[regionKeyOrSlug];
   }
 
-  // 2. Fallback: Search by pokedexSlug or individual game slugs if a slug was passed instead
   for (const region of Object.values(regionConfig)) {
     if (region.pokedexSlug === regionKeyOrSlug) {
       return region;

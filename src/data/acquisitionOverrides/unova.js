@@ -1,18 +1,42 @@
-// Scoped to Black/White specifically. Black 2/White 2 rearranges Unova's
-// geography enough (Aspertia City, Virbank City, Humilau City, a
-// different gym order) that it needs its own stage map, same category of
-// problem as FireRed/LeafGreen vs. original Red/Blue — not something that
-// can share this file accurately. Treat B2/W2 as a future addition.
-
 const unovaOverrides = {
-  snivy: { category: "starter", detail: "Chosen as your starter from Professor Juniper in Nuvema Town.", stage: 0 },
-  tepig: { category: "starter", detail: "Chosen as your starter from Professor Juniper in Nuvema Town.", stage: 0 },
-  oshawott: { category: "starter", detail: "Chosen as your starter from Professor Juniper in Nuvema Town.", stage: 0 },
+  snivy: { 
+    category: "starter", 
+    detail: "Chosen as your starter from Professor Juniper in Nuvema Town.", 
+    stage: 0,
+    versions: {
+      black2: { detail: "Chosen as your starter from Bianca in Aspertia City." },
+      white2: { detail: "Chosen as your starter from Bianca in Aspertia City." }
+    }
+  },
+  tepig: { 
+    category: "starter", 
+    detail: "Chosen as your starter from Professor Juniper in Nuvema Town.", 
+    stage: 0,
+    versions: {
+      black2: { detail: "Chosen as your starter from Bianca in Aspertia City." },
+      white2: { detail: "Chosen as your starter from Bianca in Aspertia City." }
+    }
+  },
+  oshawott: { 
+    category: "starter", 
+    detail: "Chosen as your starter from Professor Juniper in Nuvema Town.", 
+    stage: 0,
+    versions: {
+      black2: { detail: "Chosen as your starter from Bianca in Aspertia City." },
+      white2: { detail: "Chosen as your starter from Bianca in Aspertia City." }
+    }
+  },
 
-  // Karrablast/Shelmet's mutual-trade requirement gets a specific note
-  // from evolutionChain.js's trade_species handling automatically, so no
-  // override needed for the evolved forms — only the base wild forms are
-  // plain "wild" entries with nothing special to say here.
+  // Fossils
+  tirtouga: { category: "fossil", detail: "Revived from a Cover Fossil at the Nacrene City Museum.", stage: 4 },
+  archen: { category: "fossil", detail: "Revived from a Plume Fossil at the Nacrene City Museum.", stage: 4 },
+
+  // Special Gifts & Rare Base Forms
+  larvitar: { category: "wild", detail: "Found in the wild in Artisan Cave or Hidden Grottoes.", stage: 8 },
+  deino: { category: "wild", detail: "Found in the wild in Victory Road.", stage: 8 },
+  larvesta: { category: "gift", detail: "Received as an egg from a worker on Route 18.", stage: 7 },
+  beldum: { category: "gift", detail: "Received as a gift from Steven Stone in Driftveil City after defeating him.", stage: 6 },
+  zoroark: { category: "gift", detail: "Received as a gift in the Freezing Village.", stage: 7 },
 
   reshiram: { category: "legendary", detail: "Box legendary encountered at N's Castle (White) or Dragonspiral Tower, during the climactic story battle with N.", stage: 11, versions: { black: { category: "legendary", detail: "Obtainable in Black by trading with a White player, or via a separate late-game story encounter depending on version.", stage: 11 } } },
   zekrom: { category: "legendary", detail: "Box legendary encountered at N's Castle (Black) or Dragonspiral Tower, during the climactic story battle with N.", stage: 11, versions: { white: { category: "legendary", detail: "Obtainable in White by trading with a Black player, or via a separate late-game story encounter depending on version.", stage: 11 } } },

@@ -1,14 +1,5 @@
 import { pokedex } from "./pokeapiClient";
 
-/**
- * Turn a single evolution_details entry (from PokeAPI's evolution-chain
- * endpoint) into { category, detail } — the same shape the old hand-typed
- * dataset used, but derived live from the API instead of typed by hand.
- *
- * PokeAPI's evolution_details is occasionally an array with >1 entry when
- * a species can evolve multiple ways (rare) — callers should pass the
- * first entry unless they need to represent branches explicitly.
- */
 export function describeEvolution(detail, fromName) {
   if (!detail) return { category: "wild", detail: "" };
 
@@ -22,12 +13,6 @@ export function describeEvolution(detail, fromName) {
         detail: `Evolves from ${fromName} through high friendship${time}.`,
       };
     }
-    // Gen IV introduced location-gated evolutions (Leafeon/Glaceon near
-    // Moss/Ice Rocks, Magnezone/Probopass at magnetic fields) — PokeAPI
-    // exposes this as a `location` field on the evolution detail rather
-    // than a level or item, so it needs its own case or it silently falls
-    // through to the generic "on level-up" fallback with no explanation
-    // of WHERE.
     if (detail.location) {
       return {
         category: "evolve",
@@ -56,9 +41,6 @@ export function describeEvolution(detail, fromName) {
         detail: `Evolves from ${fromName} by trading it while it holds a ${humanize(detail.held_item.name)}.`,
       };
     }
-    // Karrablast <-> Shelmet is the one case where "trade to another
-    // player" isn't enough info — it specifically needs to be traded FOR
-    // the other species, not just traded at all.
     if (detail.trade_species) {
       return {
         category: "trade",
@@ -85,8 +67,6 @@ export function describeEvolution(detail, fromName) {
     };
   }
 
-  // Fallback for triggers this hasn't been taught yet (e.g. Gen5+
-  // location-based or "other" triggers). Flag it rather than guess.
   return {
     category: "evolve",
     detail: `Evolves from ${fromName} (${humanize(trigger || "special condition")}) — check a guide for the exact requirement.`,
@@ -98,12 +78,6 @@ function humanize(slug) {
   return slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
 
-/**
- * Recursively search an evolution chain tree for `speciesName`, returning
- * { node, lineage } where lineage is the ordered list of ancestor species
- * names from root to (not including) the target — mirroring the old
- * getLineage() helper, but walking a live API tree instead of a local map.
- */
 function findInChain(node, speciesName, ancestors) {
   if (node.species.name === speciesName) {
     return { node, lineage: ancestors };
@@ -115,18 +89,7 @@ function findInChain(node, speciesName, ancestors) {
   return null;
 }
 
-/**
- * Given a species name, fetch its evolution chain and return:
- *   - category/detail for how THIS species is obtained (via its own
- *     evolution_details), unless it's the root (no evolution_details —
- *     caller should treat the root as wild/starter/gift/fossil, since
- *     evolution data can't tell you how the base form is caught)
- *   - lineage: ordered ancestor species names, root first
- *
- * This does NOT decide starter/gift/fossil/legendary — see acquisitionOverrides.js
- * for that, since the API has no concept of those.
- */
-export async function getEvolutionInfo(speciesName) {
+export async function getEvolutionInfo(speciesName, maxGeneration) {
   const species = await pokedex.getPokemonSpeciesByName(speciesName);
   const chainId = idFromUrl(species.evolution_chain.url);
   const chain = await pokedex.getEvolutionChainById(chainId);
@@ -136,13 +99,26 @@ export async function getEvolutionInfo(speciesName) {
     throw new Error(`${speciesName} not found in its own evolution chain — API data inconsistency`);
   }
 
-  const isRoot = found.lineage.length === 0;
+  let lineage = found.lineage;
+  if (maxGeneration != null) {
+    const filtered = [];
+    for (const ancestor of lineage) {
+      const ancestorSpecies = await pokedex.getPokemonSpeciesByName(ancestor);
+      const genId = Number(idFromUrl(ancestorSpecies.generation.url));
+      if (genId <= maxGeneration) {
+        filtered.push(ancestor);
+      }
+    }
+    lineage = filtered;
+  }
+
+  const isRoot = lineage.length === 0;
   const details = found.node.evolution_details?.[0] || null;
-  const fromName = found.lineage[found.lineage.length - 1];
+  const fromName = lineage[lineage.length - 1];
 
   return {
     isRoot,
-    lineage: found.lineage, // e.g. ["charmander", "charmeleon"] for charizard
+    lineage,
     ...( isRoot ? { category: null, detail: null } : describeEvolution(details, humanize(fromName)) ),
   };
 }
