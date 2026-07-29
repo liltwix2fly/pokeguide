@@ -3,18 +3,42 @@ import { getEncounters } from "./pokeapiClient";
 import { getEvolutionInfo, describeEvolution } from "./evolutionChain";
 import { getRegion } from "../data/regionConfig";
 import { getDisplayIdMap } from "./pokedexNumbers";
+import { normalizeLocationSlug } from "./locationUtils";
+import kantoStageMap, { STAGES_KANTO } from "../data/stageMaps/kanto";
+import kantoOverrides from "../data/acquisitionOverrides/kanto";
+import johtoStageMap, { STAGES_JOHTO } from "../data/stageMaps/johto";
+import johtoOverrides from "../data/acquisitionOverrides/johto";
 
 const CATEGORY_ORDER = {
   starter: 0, wild: 1, gift: 1, fossil: 1, "trade-only": 1,
   evolve: 2, stone: 2, trade: 2, legendary: 3,
 };
 
+/**
+ * Helper to strip form suffixes (e.g., landorus-incarnate -> landorus)
+ * for PokéAPI species and evolution endpoints.
+ */
+function getBaseSpeciesName(name) {
+  const formSuffixes = ['incarnate', 'therian', 'altered', 'origin', 'galar', 'alola', 'hisui', 'paldea'];
+  const parts = name.toLowerCase().split('-');
+  if (parts.length > 1 && formSuffixes.includes(parts[parts.length - 1])) {
+    return parts.slice(0, -1).join('-');
+  }
+  return name;
+}
 
 /**
  * Look up an override entry for a species, applying any game-specific
- * override (e.g. Pikachu is "wild" by default but "starter" in Yellow).
+ * override. Routes FireRed/LeafGreen to Kanto and HeartGold/SoulSilver to Johto.
  */
-function lookupOverride(overrides, speciesName, game) {
+function lookupOverride(speciesName, game, region) {
+  let overrides = region.overrides;
+  if (game.id === "firered" || game.id === "leafgreen") {
+    overrides = kantoOverrides;
+  } else if (game.id === "heartgold" || game.id === "soulsilver") {
+    overrides = johtoOverrides;
+  }
+
   const base = overrides[speciesName];
   if (!base) return null;
   const versionOverride = base.versions?.[game.id] || base.versions?.[game.versionGroup?.replace(/-/g, "")];
@@ -24,15 +48,25 @@ function lookupOverride(overrides, speciesName, game) {
 /**
  * For a root-form species with no override: find its best (highest-chance)
  * wild encounter in this game's version, and map that location to a stage.
- * Returns null if the species has no wild encounters in this version at all
- * (e.g. it's genuinely not obtainable here — trade-only, wrong version, etc).
  */
 async function resolveWildEncounter(speciesName, game, region) {
   const raw = await getEncounters(speciesName);
   const matches = [];
 
+  // Normalize game version for robust matching against PokéAPI version names (e.g., "black2" vs "black-2")
+  const targetVersion = game.version?.toLowerCase() || '';
+  const normalizedTarget = targetVersion.replace(/-/g, '');
+
   raw.forEach((loc) => {
-    const vd = loc.version_details.find((v) => v.version.name === game.version);
+    const vd = loc.version_details.find((v) => {
+      const apiVersion = v.version.name.toLowerCase();
+      return (
+        apiVersion === targetVersion ||
+        apiVersion.replace(/-/g, '') === normalizedTarget ||
+        apiVersion === game.versionGroup?.toLowerCase()
+      );
+    });
+
     if (vd && vd.encounter_details?.length) {
       const minLevel = Math.min(...vd.encounter_details.map((e) => e.min_level));
       const maxLevel = Math.max(...vd.encounter_details.map((e) => e.max_level));
@@ -51,13 +85,22 @@ async function resolveWildEncounter(speciesName, game, region) {
 
   matches.sort((a, b) => b.chance - a.chance);
   const best = matches[0];
-  const stage = region.locationStageMap[best.locationArea] ?? null;
+  const normalizedSlug = normalizeLocationSlug(best.locationArea);
+  
+  // Use appropriate stage map based on game version
+  let stageMap = region.locationStageMap;
+  if (game.id === "firered" || game.id === "leafgreen") {
+    stageMap = kantoStageMap;
+  } else if (game.id === "heartgold" || game.id === "soulsilver") {
+    stageMap = johtoStageMap;
+  }
+  const stage = stageMap[normalizedSlug] ?? null;
 
   return {
     category: "wild",
     detail:
       stage === null
-        ? `Found in the wild (location "${best.locationArea}" isn't mapped to a stage yet — check the stage map).`
+        ? `Found in the wild (location "${best.locationArea}" [normalized to "${normalizedSlug}"] isn't mapped to a stage yet — check the stage map).`
         : `Found around ${humanizeLocation(best.locationArea)}, level ${best.minLevel}${best.maxLevel !== best.minLevel ? `-${best.maxLevel}` : ""}.`,
     stage,
     allEncounters: matches,
@@ -74,20 +117,21 @@ function humanizeLocation(slug) {
 
 /**
  * Fully resolve a single species: base data + how it's obtained + stage.
- * Does NOT resolve its lineage — see resolveTeamMember for that.
  */
 async function resolveSpecies(speciesName, game, region) {
+  const baseSpeciesName = getBaseSpeciesName(speciesName);
+
   const [pokemonData, speciesData, evoInfo] = await Promise.all([
     pokedex.getPokemonByName(speciesName),
-    pokedex.getPokemonSpeciesByName(speciesName),
-    getEvolutionInfo(speciesName),
+    pokedex.getPokemonSpeciesByName(baseSpeciesName),
+    getEvolutionInfo(baseSpeciesName, region.generation),
   ]);
 
   const displayIdMap = await getDisplayIdMap(region.pokedexSlug);
 
   const base = {
     nationalId: pokemonData.id,
-    displayId: displayIdMap[speciesName] ?? null,
+    displayId: displayIdMap[speciesName] ?? displayIdMap[baseSpeciesName] ?? null,
     name: speciesName,
     types: pokemonData.types.map((t) => t.type.name),
     sprite:
@@ -96,29 +140,20 @@ async function resolveSpecies(speciesName, game, region) {
     evolvesFrom: evoInfo.lineage[evoInfo.lineage.length - 1] || null,
   };
 
-  // 1. Evolved form? Category/detail come from the evolution chain itself.
-  //    Stage still needs to come from the ROOT of the chain — handled by
-  //    the caller (resolveTeamMember), not here.
   if (!evoInfo.isRoot) {
     return { ...base, category: evoInfo.category, detail: evoInfo.detail, stage: null };
   }
 
-  // 2. Root form with a hand-maintained override (starter/gift/fossil/
-  //    legendary/trade-only, or a version-specific special case).
-  const override = lookupOverride(region.overrides, speciesName, game);
+  const override = lookupOverride(speciesName, game, region) || lookupOverride(baseSpeciesName, game, region);
   if (override) {
     return { ...base, category: override.category, detail: override.detail, stage: override.stage };
   }
 
-  // 3. Root form, no override: must be a plain wild encounter.
   const wild = await resolveWildEncounter(speciesName, game, region);
   if (wild) {
     return { ...base, ...wild };
   }
 
-  // 4. Root form, no override, no encounter data in this version at all.
-  //    Don't guess — surface it plainly so it's obvious this needs an
-  //    override entry rather than silently showing wrong info.
   return {
     ...base,
     category: speciesData.is_legendary || speciesData.is_mythical ? "legendary" : "wild",
@@ -128,14 +163,12 @@ async function resolveSpecies(speciesName, game, region) {
 }
 
 /**
- * Resolve a team member AND its full lineage back to the root, applying
- * the stage-inheritance rule: every form in a chain shares the ROOT's
- * stage (e.g. Typhlosion inherits Cyndaquil's stage), matching the
- * original hand-built dataset's behavior exactly.
+ * Resolve a team member AND its full lineage back to the root.
  */
 export async function resolveTeamMember(speciesName, game, region) {
-  const evoInfo = await getEvolutionInfo(speciesName);
-  const chainNames = [...evoInfo.lineage, speciesName]; // root-first, including target
+  const baseSpeciesName = getBaseSpeciesName(speciesName);
+  const evoInfo = await getEvolutionInfo(baseSpeciesName, region.generation);
+  const chainNames = [...evoInfo.lineage, speciesName];
 
   const resolved = await Promise.all(chainNames.map((name) => resolveSpecies(name, game, region)));
 
@@ -144,15 +177,14 @@ export async function resolveTeamMember(speciesName, game, region) {
 
   const withInheritedStage = resolved.map((mon) => ({ ...mon, stage: rootStage }));
   const target = withInheritedStage[withInheritedStage.length - 1];
-  const lineage = withInheritedStage.slice(0, -1); // ancestors only, root-first
+  const lineage = withInheritedStage.slice(0, -1);
 
   return { ...target, lineage };
 }
 
 /**
  * Top-level entry point: given a list of species names and a game
- * selection, returns the full team report sorted chronologically by
- * stage — exactly the data a report screen needs to render.
+ * selection, returns the full team report sorted chronologically by stage.
  */
 export async function buildTeamReport(speciesNames, regionId, gameId) {
   const region = getRegion(regionId);
@@ -173,5 +205,12 @@ export async function buildTeamReport(speciesNames, regionId, gameId) {
     return a.nationalId - b.nationalId;
   });
 
-  return { game, stages: region.stages, team };
+  let stages = region.stages;
+  if (game.id === "firered" || game.id === "leafgreen") {
+    stages = STAGES_KANTO;
+  } else if (game.id === "heartgold" || game.id === "soulsilver") {
+    stages = STAGES_JOHTO;
+  }
+
+  return { game, stages, team };
 }
