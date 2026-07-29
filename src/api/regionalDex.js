@@ -1,38 +1,51 @@
 import { pokedex } from "./pokeapiClient";
-import { getDisplayIdMap } from "./pokedexNumbers";
 import { getRegion } from "../data/regionConfig";
 
 /**
- * Returns every species newly introduced in this region/generation (not
- * the full regional dex, which includes returning species from earlier
- * generations too) — matching how the original hand-built datasets scoped
- * "Gen 1 Pokémon" to just the 151 species first introduced there.
- *
- * Uses generation.pokemon_species (species first appearing in this gen)
- * rather than the regional pokedex, since the regional pokedex includes
- * returning species from earlier generations that don't belong in "this
- * generation's list" the way the picker screen wants to present it.
+ * Returns the full regional dex list for the selected region/game,
+ * supporting expanded cross-generation regional Pokédexes (such as
+ * Platinum's extended-sinnoh vs Diamond/Pearl's original-sinnoh).
  */
-export async function getRegionalDexList(regionId) {
+export async function getRegionalDexList(regionId, gameId) {
   const region = getRegion(regionId);
-  const [generationData, displayIdMap] = await Promise.all([
-    pokedex.getGenerationByName(region.generation),
-    getDisplayIdMap(region.pokedexSlug),
-  ]);
+  
+  // Find the specific game selected (e.g., Platinum) to grab its dex override (e.g., extended-sinnoh)
+  const selectedGame = gameId ? region.games?.find((g) => g.id === gameId) : null;
+  
+  // Fall back to the region's default pokedexSlug if no game override exists
+  const dexSlug = selectedGame?.dexId || selectedGame?.pokedexSlug || region.pokedexSlug;
 
-  const speciesNames = generationData.pokemon_species
-    .map((s) => s.name)
-    .sort((a, b) => (displayIdMap[a] ?? 9999) - (displayIdMap[b] ?? 9999));
+  // Fetch the actual regional Pokédex object directly to include cross-gen species
+  const dex = await pokedex.getPokedexByName(dexSlug);
 
-  // pokedex-promise-v2 fetches array input in parallel, so this is one
-  // batched round-trip rather than N sequential ones.
-  const pokemonData = await pokedex.getPokemonByName(speciesNames);
-
-  return pokemonData.map((p) => ({
-    nationalId: p.id,
-    displayId: displayIdMap[p.name] ?? null,
-    name: p.name,
-    types: p.types.map((t) => t.type.name),
-    sprite: p.sprites.other?.["official-artwork"]?.front_default || p.sprites.front_default,
+  // Extract species names and map their display entry numbers directly from the dex
+  const speciesEntries = dex.pokemon_entries.map((e) => ({
+    name: e.pokemon_species.name,
+    entryNumber: e.entry_number,
   }));
+
+  const speciesNames = speciesEntries.map((e) => e.name);
+
+  // Use Promise.allSettled to gracefully handle form-variant 404 errors (like Darmanitan)
+  const results = await Promise.allSettled(
+    speciesNames.map((name) => pokedex.getPokemonByName(name))
+  );
+
+  // Create a lookup map for the regional numbers
+  const displayIdMap = Object.fromEntries(
+    speciesEntries.map((e) => [e.name, e.entryNumber])
+  );
+
+  return results
+    .filter((res) => res.status === "fulfilled" && res.value)
+    .map((res) => {
+      const p = res.value;
+      return {
+        nationalId: p.id,
+        displayId: displayIdMap[p.name] ?? null,
+        name: p.name,
+        types: p.types.map((t) => t.type.name),
+        sprite: p.sprites.other?.["official-artwork"]?.front_default || p.sprites.front_default,
+      };
+    });
 }

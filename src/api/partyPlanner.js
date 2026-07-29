@@ -9,6 +9,7 @@ const CATEGORY_ORDER = {
   evolve: 2, stone: 2, trade: 2, legendary: 3,
 };
 
+
 /**
  * Look up an override entry for a species, applying any game-specific
  * override (e.g. Pikachu is "wild" by default but "starter" in Yellow).

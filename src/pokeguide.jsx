@@ -1,6 +1,8 @@
 //importing react packages and our css file
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import "./pokeguide.css";
+import { getRegionalDexList } from "./api/regionalDex"; 
+import { buildTeamReport } from "./api/partyPlanner";
 
 //directly implementing icons through svg --> ran into lotta issues w using lucide
 
@@ -102,6 +104,10 @@ const Info = (p) => (
     <circle cx="12" cy="7.5" r="0.9" fill="currentColor" stroke="none" />
   </IconBase>
 );
+const capitalize = (str) => {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
 
 
 //static data with colors, abbreviations, game names, etc.
@@ -123,18 +129,36 @@ const TYPE_ABBR = {
 
 const REGIONS = [
   { id: "kanto", roman: "I", region: "Kanto", available: true, games: [
-    { id: "red", label: "Red" },
-    { id: "blue", label: "Blue" },
-    { id: "yellow", label: "Yellow" },
+    { id: "red", label: "Red", dexId: "kanto"},
+    { id: "blue", label: "Blue" , dexId: "kanto"},
+    { id: "yellow", label: "Yellow" , dexId: "kanto"},
   ] },
   { id: "johto", roman: "II", region: "Johto", available: true, games: [
-    { id: "gold", label: "Gold" },
-    { id: "silver", label: "Silver" },
-    { id: "crystal", label: "Crystal" },
+    { id: "gold", label: "Gold" , dexId:"johto"},
+    { id: "silver", label: "Silver" , dexId:"johto"},
+    { id: "crystal", label: "Crystal" , dexId:"johto"},
   ] },
-  { id: "hoenn", roman: "III", region: "Hoenn", available: false, games: [] },
-  { id: "sinnoh", roman: "IV", region: "Sinnoh", available: false, games: [] },
-  { id: "unova", roman: "V", region: "Unova", available: false, games: [] },
+  { id: "hoenn", roman: "III", region: "Hoenn", available: true, games: [
+    { id: "ruby", label: "Ruby" , dexId: "hoenn"},
+    { id: "sapphire", label: "Sapphire" , dexId: "hoenn"},
+    { id: "emerald", label: "Emerald" , dexId: "hoenn"},
+    { id: "firered", label: "Fire Red" , dexId: "kanto"},
+    { id: "leafgreen", label: "Leaf Green" , dexId: "kanto"},
+  ] },
+  { id: "sinnoh", roman: "IV", region: "Sinnoh", available: true, games: [
+    { id: "diamond", label: "Diamond" , dexId: "original-sinnoh"},
+    { id: "pearl", label: "Pearl" , dexId: "original-sinnoh"},
+    { id: "platinum", label: "Platinum" , dexId: "extended-sinnoh"},
+    { id: "heartgold", label: "Heart Gold" , dexId: "johto"},
+    { id: "soulsilver", label: "Soul Silver" , dexId: "johto"},
+  ] },
+  { id: "unova", roman: "V", region: "Unova", available: true, games: [
+    { id: "black", label: "Black" , dexId: "unova"},
+    { id: "white", label: "White" , dexId: "unova"},
+    { id: "black2", label: "Black 2" , dexId: "updated-unova"},
+    { id: "white2", label: "White 2" , dexId: "updated-unova"},
+
+  ] },
   { id: "kalos", roman: "VI", region: "Kalos", available: false, games: [] },
   { id: "alola", roman: "VII", region: "Alola", available: false, games: [] },
   { id: "galar", roman: "VIII", region: "Galar", available: false, games: [] },
@@ -143,359 +167,45 @@ const REGIONS = [
 
 const MAX_TEAM = 6;
 
-//Changed system to determine ordering through an arbitrary stage system, need to 
 
-const STAGES_KANTO = [
-  { id: 0, label: "Pallet Town", note: "Starting out" },
-  { id: 1, label: "Pewter City", note: "Brock · Rock (Gym 1)" },
-  { id: 2, label: "Cerulean City", note: "Misty · Water (Gym 2)" },
-  { id: 3, label: "Vermilion City", note: "Lt. Surge · Electric (Gym 3)" },
-  { id: 4, label: "Rock Tunnel", note: "En route to Lavender Town" },
-  { id: 5, label: "Celadon City", note: "Erika · Grass (Gym 4)" },
-  { id: 6, label: "Pokémon Tower", note: "Poké Flute obtained" },
-  { id: 7, label: "Fuchsia City", note: "Koga · Poison (Gym 5)" },
-  { id: 8, label: "Saffron City", note: "Sabrina · Psychic (Gym 6)" },
-  { id: 9, label: "Cinnabar Island", note: "Blaine · Fire (Gym 7)" },
-  { id: 10, label: "Viridian City", note: "Giovanni · Ground (Gym 8)" },
-  { id: 11, label: "Victory Road", note: "Elite Four & Champion" },
-  { id: 12, label: "Post-Game", note: "Cerulean Cave & beyond" },
-];
 
-const STAGES_JOHTO = [
-  { id: 0, label: "New Bark Town", note: "Starting out" },
-  { id: 1, label: "Violet City", note: "Falkner · Flying (Gym 1)" },
-  { id: 2, label: "Azalea Town", note: "Bugsy · Bug (Gym 2)" },
-  { id: 3, label: "Goldenrod City", note: "Whitney · Normal (Gym 3)" },
-  { id: 4, label: "National Park", note: "En route to Ecruteak City" },
-  { id: 5, label: "Ecruteak City", note: "Morty · Ghost (Gym 4)" },
-  { id: 6, label: "Cianwood City", note: "Chuck · Fighting (Gym 5)" },
-  { id: 7, label: "Olivine City", note: "Jasmine · Steel (Gym 6)" },
-  { id: 8, label: "Mahogany Town", note: "Team Rocket hideout" },
-  { id: 9, label: "Blackthorn City", note: "Pryce & Clair · Ice/Dragon (Gyms 7-8)" },
-  { id: 10, label: "Dragon's Den", note: "Blackthorn's back yard" },
-  { id: 11, label: "Victory Road", note: "Elite Four & Champion" },
-  { id: 12, label: "Post-Game", note: "Mt. Silver & beyond" },
-];
-
-const P = (display_id, real_id, name, types, category, detail, evolvesFrom, exclusiveTo, stage) => ({
-  display_id, real_id, name, types, category, detail, evolvesFrom: evolvesFrom || null, exclusiveTo: exclusiveTo || null, stage,
-});
-
-const POKEDEX_GEN1 = [
-  P(1, 1, "Bulbasaur", ["grass", "poison"], "starter", "Chosen as your starter from Professor Oak in Pallet Town.", null, null, 0),
-  P(2, 2, "Ivysaur", ["grass", "poison"], "evolve", "Evolves from Bulbasaur at level 16.", "Bulbasaur", null, 0),
-  P(3, 3, "Venusaur", ["grass", "poison"], "evolve", "Evolves from Ivysaur at level 32.", "Ivysaur", null, 0),
-  P(4, 4, "Charmander", ["fire"], "starter", "Chosen as your starter from Professor Oak in Pallet Town.", null, null, 0),
-  P(5, 5, "Charmeleon", ["fire"], "evolve", "Evolves from Charmander at level 16.", "Charmander", null, 0),
-  P(6, 6, "Charizard", ["fire", "flying"], "evolve", "Evolves from Charmeleon at level 36.", "Charmeleon", null, 0),
-  P(7, 7, "Squirtle", ["water"], "starter", "Chosen as your starter from Professor Oak in Pallet Town.", null, null, 0),
-  P(8, 8, "Wartortle", ["water"], "evolve", "Evolves from Squirtle at level 16.", "Squirtle", null, 0),
-  P(9, 9, "Blastoise", ["water"], "evolve", "Evolves from Wartortle at level 36.", "Wartortle", null, 0),
-  P(10, 10, "Caterpie", ["bug"], "wild", "Common in Viridian Forest and the grass on Route 2 and Route 24.", null, null, 1),
-  P(11, 11, "Metapod", ["bug"], "evolve", "Evolves from Caterpie at level 7 (occasionally found wild too).", "Caterpie", null, 1),
-  P(12, 12, "Butterfree", ["bug", "flying"], "evolve", "Evolves from Metapod at level 10.", "Metapod", null, 1),
-  P(13, 13, "Weedle", ["bug", "poison"], "wild", "Common in Viridian Forest and the grass on Routes 24-25.", null, null, 1),
-  P(14, 14, "Kakuna", ["bug", "poison"], "evolve", "Evolves from Weedle at level 7 (occasionally found wild too).", "Weedle", null, 1),
-  P(15, 15, "Beedrill", ["bug", "poison"], "evolve", "Evolves from Kakuna at level 10.", "Kakuna", null, 1),
-  P(16, 16, "Pidgey", ["normal", "flying"], "wild", "Extremely common on almost every early grass route, starting with Route 1.", null, null, 0),
-  P(17, 17, "Pidgeotto", ["normal", "flying"], "evolve", "Evolves from Pidgey at level 18 (occasionally found wild).", "Pidgey", null, 0),
-  P(18, 18, "Pidgeot", ["normal", "flying"], "evolve", "Evolves from Pidgeotto at level 36.", "Pidgeotto", null, 0),
-  P(19, 19, "Rattata", ["normal"], "wild", "Very common on Route 1 and most early grass routes.", null, null, 0),
-  P(20, 20, "Raticate", ["normal"], "evolve", "Evolves from Rattata at level 20.", "Rattata", null, 0),
-  P(21, 21, "Spearow", ["normal", "flying"], "wild", "Common around Route 9-10 and near Mt. Moon.", null, null, 2),
-  P(22, 22, "Fearow", ["normal", "flying"], "evolve", "Evolves from Spearow at level 20.", "Spearow", null, 2),
-  P(23, 23, "Ekans", ["poison"], "wild", "Found in the grass on Routes 22-23.", null, "red", 2),
-  P(24, 24, "Arbok", ["poison"], "evolve", "Evolves from Ekans at level 22.", "Ekans", null, 2),
-  P(25, 25, "Pikachu", ["electric"], "wild", "Rare in Viridian Forest. In Pokémon Yellow, you're given one directly by Professor Oak as your starter instead.", null, null, 1),
-  P(26, 26, "Raichu", ["electric"], "stone", "Evolves from Pikachu using a Thunder Stone.", "Pikachu", null, 1),
-  P(27, 27, "Sandshrew", ["ground"], "wild", "Found around Route 3-4 and Digletts Cave.", null, "blue", 2),
-  P(28, 28, "Sandslash", ["ground"], "evolve", "Evolves from Sandshrew at level 22.", "Sandshrew", null, 2),
-  P(29, 29, "Nidoran♀", ["poison"], "wild", "Common in the grass on Routes 3 through 5.", null, null, 2),
-  P(30, 30, "Nidorina", ["poison"], "evolve", "Evolves from Nidoran♀ at level 16.", "Nidoran♀", null, 2),
-  P(31, 31, "Nidoqueen", ["poison", "ground"], "stone", "Evolves from Nidorina using a Moon Stone.", "Nidorina", null, 2),
-  P(32, 32, "Nidoran♂", ["poison"], "wild", "Common in the grass on Routes 3 through 5.", null, null, 2),
-  P(33, 33, "Nidorino", ["poison"], "evolve", "Evolves from Nidoran♂ at level 16.", "Nidoran♂", null, 2),
-  P(34, 34, "Nidoking", ["poison", "ground"], "stone", "Evolves from Nidorino using a Moon Stone.", "Nidorino", null, 2),
-  P(35, 35, "Clefairy", ["normal"], "wild", "Found in the caves of Mt. Moon.", null, null, 2),
-  P(36, 36, "Clefable", ["normal"], "stone", "Evolves from Clefairy using a Moon Stone.", "Clefairy", null, 2),
-  P(37, 37, "Vulpix", ["fire"], "wild", "Found around Route 7-8, near Celadon City.", null, "blue", 5),
-  P(38, 38, "Ninetales", ["fire"], "stone", "Evolves from Vulpix using a Fire Stone.", "Vulpix", null, 5),
-  P(39, 39, "Jigglypuff", ["normal"], "wild", "Found in the grass around Route 3-4, near Mt. Moon.", null, null, 2),
-  P(40, 40, "Wigglytuff", ["normal"], "stone", "Evolves from Jigglypuff using a Moon Stone.", "Jigglypuff", null, 2),
-  P(41, 41, "Zubat", ["poison", "flying"], "wild", "Common throughout Mt. Moon and Rock Tunnel.", null, null, 2),
-  P(42, 42, "Golbat", ["poison", "flying"], "evolve", "Evolves from Zubat at level 22.", "Zubat", null, 2),
-  P(43, 43, "Oddish", ["grass", "poison"], "wild", "Found in the grass on Routes 5, 6, 24 and 25.", null, "red", 3),
-  P(44, 44, "Gloom", ["grass", "poison"], "evolve", "Evolves from Oddish at level 21.", "Oddish", null, 3),
-  P(45, 45, "Vileplume", ["grass", "poison"], "stone", "Evolves from Gloom using a Leaf Stone.", "Gloom", null, 3),
-  P(46, 46, "Paras", ["bug", "grass"], "wild", "Found in Mt. Moon and Digletts Cave.", null, null, 2),
-  P(47, 47, "Parasect", ["bug", "grass"], "evolve", "Evolves from Paras at level 24.", "Paras", null, 2),
-  P(48, 48, "Venonat", ["bug", "poison"], "wild", "Found in the grass on Routes 24-25 and in Digletts Cave.", null, null, 3),
-  P(49, 49, "Venomoth", ["bug", "poison"], "evolve", "Evolves from Venonat at level 31.", "Venonat", null, 3),
-  P(50, 50, "Diglett", ["ground"], "wild", "Found throughout Digletts Cave and on Route 2.", null, null, 1),
-  P(51, 51, "Dugtrio", ["ground"], "evolve", "Evolves from Diglett at level 26.", "Diglett", null, 1),
-  P(52, 52, "Meowth", ["normal"], "wild", "Found in the grass around Routes 24-25.", null, "blue", 3),
-  P(53, 53, "Persian", ["normal"], "evolve", "Evolves from Meowth at level 28.", "Meowth", null, 3),
-  P(54, 54, "Psyduck", ["water"], "wild", "Found near the water on Route 6, and by surfing.", null, null, 3),
-  P(55, 55, "Golduck", ["water"], "evolve", "Evolves from Psyduck at level 33.", "Psyduck", null, 3),
-  P(56, 56, "Mankey", ["fighting"], "wild", "Found in the grass around Route 22, near Victory Road.", null, "red", 1),
-  P(57, 57, "Primeape", ["fighting"], "evolve", "Evolves from Mankey at level 28.", "Mankey", null, 1),
-  P(58, 58, "Growlithe", ["fire"], "wild", "Found around Route 7-8, near Celadon City.", null, "red", 5),
-  P(59, 59, "Arcanine", ["fire"], "stone", "Evolves from Growlithe using a Fire Stone.", "Growlithe", null, 5),
-  P(60, 60, "Poliwag", ["water"], "wild", "Found near water on Routes 6 and 22, and by surfing.", null, null, 3),
-  P(61, 61, "Poliwhirl", ["water"], "evolve", "Evolves from Poliwag at level 25.", "Poliwag", null, 3),
-  P(62, 62, "Poliwrath", ["water", "fighting"], "stone", "Evolves from Poliwhirl using a Water Stone.", "Poliwhirl", null, 3),
-  P(63, 63, "Abra", ["psychic"], "wild", "Found on Routes 24-25. It teleports away almost immediately, so a paralyzing move or Sleep Powder helps.", null, null, 3),
-  P(64, 64, "Kadabra", ["psychic"], "evolve", "Evolves from Abra at level 16.", "Abra", null, 3),
-  P(65, 65, "Alakazam", ["psychic"], "trade", "Evolves from Kadabra by trading it to another player.", "Kadabra", null, 3),
-  P(66, 66, "Machop", ["fighting"], "wild", "Found in Rock Tunnel and on Victory Road.", null, null, 4),
-  P(67, 67, "Machoke", ["fighting"], "evolve", "Evolves from Machop at level 28.", "Machop", null, 4),
-  P(68, 68, "Machamp", ["fighting"], "trade", "Evolves from Machoke by trading it to another player.", "Machoke", null, 4),
-  P(69, 69, "Bellsprout", ["grass", "poison"], "wild", "Found in the grass on Routes 24-25.", null, "blue", 3),
-  P(70, 70, "Weepinbell", ["grass", "poison"], "evolve", "Evolves from Bellsprout at level 21.", "Bellsprout", null, 3),
-  P(71, 71, "Victreebel", ["grass", "poison"], "stone", "Evolves from Weepinbell using a Leaf Stone.", "Weepinbell", null, 3),
-  P(72, 72, "Tentacool", ["water", "poison"], "wild", "Found by surfing or fishing in most coastal water.", null, null, 5),
-  P(73, 73, "Tentacruel", ["water", "poison"], "evolve", "Evolves from Tentacool at level 30.", "Tentacool", null, 5),
-  P(74, 74, "Geodude", ["rock", "ground"], "wild", "Common in Mt. Moon, Rock Tunnel, and Victory Road.", null, null, 2),
-  P(75, 75, "Graveler", ["rock", "ground"], "evolve", "Evolves from Geodude at level 25.", "Geodude", null, 2),
-  P(76, 76, "Golem", ["rock", "ground"], "trade", "Evolves from Graveler by trading it to another player.", "Graveler", null, 2),
-  P(77, 77, "Ponyta", ["fire"], "wild", "Found in the grass on Route 17.", null, null, 7),
-  P(78, 78, "Rapidash", ["fire"], "evolve", "Evolves from Ponyta at level 40.", "Ponyta", null, 7),
-  P(79, 79, "Slowpoke", ["water", "psychic"], "wild", "Found near water around Route 6 and the Cerulean City area.", null, null, 2),
-  P(80, 80, "Slowbro", ["water", "psychic"], "evolve", "Evolves from Slowpoke at level 37.", "Slowpoke", null, 2),
-  P(81, 81, "Magnemite", ["electric"], "wild", "Found in Rock Tunnel and the Power Plant.", null, null, 6),
-  P(82, 82, "Magneton", ["electric"], "evolve", "Evolves from Magnemite at level 30.", "Magnemite", null, 6),
-  P(83, 83, "Farfetch'd", ["normal", "flying"], "trade-only", "Only obtainable through an in-game trade in Vermilion City (offer up a Spearow).", null, null, 3),
-  P(84, 84, "Doduo", ["normal", "flying"], "wild", "Found in the grass on Routes 16 through 18.", null, null, 6),
-  P(85, 85, "Dodrio", ["normal", "flying"], "evolve", "Evolves from Doduo at level 31.", "Doduo", null, 6),
-  P(86, 86, "Seel", ["water"], "wild", "Found in the Seafoam Islands.", null, null, 9),
-  P(87, 87, "Dewgong", ["water", "ice"], "evolve", "Evolves from Seel at level 34.", "Seel", null, 9),
-  P(88, 88, "Grimer", ["poison"], "wild", "Found around Route 11 and the Power Plant.", null, null, 6),
-  P(89, 89, "Muk", ["poison"], "evolve", "Evolves from Grimer at level 38.", "Grimer", null, 6),
-  P(90, 90, "Shellder", ["water"], "wild", "Found by fishing with a Good Rod in most coastal water, especially near Seafoam Islands.", null, null, 7),
-  P(91, 91, "Cloyster", ["water", "ice"], "stone", "Evolves from Shellder using a Water Stone.", "Shellder", null, 7),
-  P(92, 92, "Gastly", ["ghost", "poison"], "wild", "Found throughout Pokémon Tower in Lavender Town.", null, null, 6),
-  P(93, 93, "Haunter", ["ghost", "poison"], "evolve", "Evolves from Gastly at level 25.", "Gastly", null, 6),
-  P(94, 94, "Gengar", ["ghost", "poison"], "trade", "Evolves from Haunter by trading it to another player.", "Haunter", null, 6),
-  P(95, 95, "Onix", ["rock", "ground"], "wild", "Found in Rock Tunnel and on Victory Road.", null, null, 4),
-  P(96, 96, "Drowzee", ["psychic"], "wild", "Found around Routes 11-12, between Vermilion and Lavender Town.", null, null, 5),
-  P(97, 97, "Hypno", ["psychic"], "evolve", "Evolves from Drowzee at level 26.", "Drowzee", null, 5),
-  P(98, 98, "Krabby", ["water"], "wild", "Found near beaches and water on Routes 24-25 and around Seafoam Islands.", null, null, 3),
-  P(99, 99, "Kingler", ["water"], "evolve", "Evolves from Krabby at level 28.", "Krabby", null, 3),
-  P(100, 100, "Voltorb", ["electric"], "wild", "Found in the Power Plant.", null, null, 7),
-  P(101, 101, "Electrode", ["electric"], "evolve", "Evolves from Voltorb at level 30.", "Voltorb", null, 7),
-  P(102, 102, "Exeggcute", ["grass", "psychic"], "wild", "Found in the Safari Zone.", null, null, 7),
-  P(103, 103, "Exeggutor", ["grass", "psychic"], "stone", "Evolves from Exeggcute using a Leaf Stone.", "Exeggcute", null, 7),
-  P(104, 104, "Cubone", ["ground"], "wild", "Found in Pokémon Tower and Rock Tunnel.", null, null, 4),
-  P(105, 105, "Marowak", ["ground"], "evolve", "Evolves from Cubone at level 28.", "Cubone", null, 4),
-  P(106, 106,"Hitmonlee", ["fighting"], "gift", "One-time gift from the Fighting Dojo in Saffron City (a choice between this and Hitmonchan).", null, null, 8),
-  P(107, 107, "Hitmonchan", ["fighting"], "gift", "One-time gift from the Fighting Dojo in Saffron City (a choice between this and Hitmonlee).", null, null, 8),
-  P(108, 108, "Lickitung", ["normal"], "wild", "Found in the Safari Zone.", null, null, 7),
-  P(109, 109, "Koffing", ["poison"], "wild", "Found around the Team Rocket Hideout in Celadon City and Route 8-9.", null, null, 5),
-  P(110, 110, "Weezing", ["poison"], "evolve", "Evolves from Koffing at level 35.", "Koffing", null, 5),
-  P(111, 111, "Rhyhorn", ["ground", "rock"], "wild", "Found on Route 23 and in the Safari Zone.", null, null, 7),
-  P(112, 112, "Rhydon", ["ground", "rock"], "evolve", "Evolves from Rhyhorn at level 42.", "Rhyhorn", null, 7),
-  P(113, 113, "Chansey", ["normal"], "wild", "Rare find in the Safari Zone.", null, null, 7),
-  P(114, 114, "Tangela", ["grass"], "wild", "Found in the Safari Zone.", null, null, 7),
-  P(115, 115, "Kangaskhan", ["normal"], "wild", "Rare find in the Safari Zone.", null, null, 8),
-  P(116, 116, "Horsea", ["water"], "wild", "Found by fishing or surfing near Fuchsia City and Cinnabar Island.", null, null, 8),
-  P(117, 117, "Seadra", ["water"], "evolve", "Evolves from Horsea at level 32.", "Horsea", null, 8),
-  P(118, 118, "Goldeen", ["water"], "wild", "Found near water on Route 6, Route 22, and by fishing.", null, null, 3),
-  P(119, 119, "Seaking", ["water"], "evolve", "Evolves from Goldeen at level 33.", "Goldeen", null, 3),
-  P(120, 120, "Staryu", ["water"], "wild", "Found near water and by fishing along most coastal routes.", null, null, 3),
-  P(121, 121, "Starmie", ["water", "psychic"], "stone", "Evolves from Staryu using a Water Stone.", "Staryu", null, 3),
-  P(122, 122, "Mr. Mime", ["psychic"], "trade-only", "Only obtainable through an in-game trade (offer up a Jynx).", null, null, 10),
-  P(123, 123, "Scyther", ["bug", "flying"], "wild", "Rare find in the Safari Zone.", null, "red", 7),
-  P(124, 124, "Jynx", ["ice", "psychic"], "wild", "Rare find near Cinnabar Island and the Seafoam Islands.", null, null, 9),
-  P(125, 125, "Electabuzz", ["electric"], "wild", "Found in the Power Plant.", null, "red", 7),
-  P(126, 126, "Magmar", ["fire"], "wild", "Found in the Pokémon Mansion on Cinnabar Island.", null, "blue", 9),
-  P(127, 127, "Pinsir", ["bug"], "wild", "Rare find in the Safari Zone.", null, "blue", 7),
-  P(128, 128, "Tauros", ["normal"], "wild", "Rare find in the Safari Zone.", null, null, 7),
-  P(129, 129, "Magikarp", ["water"], "wild", "Fished up almost anywhere with an Old Rod, or bought from a vendor near Mt. Moon.", null, null, 2),
-  P(130, 130, "Gyarados", ["water", "flying"], "evolve", "Evolves from Magikarp at level 20.", "Magikarp", null, 2),
-  P(131, 131, "Lapras", ["water", "ice"], "gift", "One-time gift from a scientist inside the Silph Co. building in Saffron City.", null, null, 8),
-  P(132, 132, "Ditto", ["normal"], "wild", "Found on Routes 24-25 and in the Pokémon Mansion.", null, null, 8),
-  P(133, 133, "Eevee", ["normal"], "gift", "One-time gift inside a mansion on Route 25, near Cerulean City.", null, null, 7),
-  P(134, 134, "Vaporeon", ["water"], "stone", "Evolves from Eevee using a Water Stone.", "Eevee", null, 7),
-  P(135, 135, "Jolteon", ["electric"], "stone", "Evolves from Eevee using a Thunder Stone.", "Eevee", null, 7),
-  P(136, 136, "Flareon", ["fire"], "stone", "Evolves from Eevee using a Fire Stone.", "Eevee", null, 7),
-  P(137, 137, "Porygon", ["normal"], "gift", "Purchased with coins won at the Celadon City Game Corner.", null, null, 5),
-  P(138, 138, "Omanyte", ["rock", "water"], "fossil", "Revive the Helix Fossil at the lab on Cinnabar Island (a choice between this and the Dome Fossil).", null, null, 9),
-  P(139, 139, "Omastar", ["rock", "water"], "evolve", "Evolves from Omanyte at level 40.", "Omanyte", null, 9),
-  P(140, 140, "Kabuto", ["rock", "water"], "fossil", "Revive the Dome Fossil at the lab on Cinnabar Island (a choice between this and the Helix Fossil).", null, null, 9),
-  P(141, 141, "Kabutops", ["rock", "water"], "evolve", "Evolves from Kabuto at level 40.", "Kabuto", null, 9),
-  P(142, 142, "Aerodactyl", ["rock", "flying"], "fossil", "Revive the Old Amber found in Mt. Moon at the lab on Cinnabar Island.", null, null, 9),
-  P(143, 143, "Snorlax", ["normal"], "rare", "One-time encounter blocking the road on Route 12 (and Route 16) — use the Poké Flute to wake it.", null, null, 6),
-  P(144, 144, "Articuno", ["ice", "flying"], "legendary", "One-time legendary encounter deep inside the Seafoam Islands.", null, null, 8),
-  P(145, 145, "Zapdos", ["electric", "flying"], "legendary", "One-time legendary encounter inside the Power Plant.", null, null, 8),
-  P(146, 146, "Moltres", ["fire", "flying"], "legendary", "One-time legendary encounter, tucked in a hard-to-reach spot — worth checking a full walkthrough for the exact room.", null, null, 9),
-  P(147, 147, "Dratini", ["dragon"], "wild", "Found in the Safari Zone, or by fishing with a Super Rod.", null, null, 7),
-  P(148, 148, "Dragonair", ["dragon"], "evolve", "Evolves from Dratini at level 30.", "Dratini", null, 7),
-  P(149, 149, "Dragonite", ["dragon", "flying"], "evolve", "Evolves from Dragonair at level 55.", "Dragonair", null, 7),
-  P(150, 150, "Mewtwo", ["psychic"], "legendary", "One-time legendary encounter deep inside Cerulean Cave — only accessible after becoming Champion.", null, null, 12),
-  P(151, 151, "Mew", ["psychic"], "legendary", "Not obtainable through normal gameplay — historically available only through special events.", null, null, 12),
-];
-
-const POKEDEX_GEN2 = [
-P(1, 152, "Chikorita", ["grass"], "starter", "Chosen as your starter from Professor Elm in New Bark Town.", null, null, 0),
-  P(2, 153, "Bayleef", ["grass"], "evolve", "Evolves from Chikorita at level 16.", "Chikorita", null, 0),
-  P(3, 154, "Meganium", ["grass"], "evolve", "Evolves from Bayleef at level 32.", "Bayleef", null, 0),
-  P(4, 155, "Cyndaquil", ["fire"], "starter", "Chosen as your starter from Professor Elm in New Bark Town.", null, null, 0),
-  P(5, 156, "Quilava", ["fire"], "evolve", "Evolves from Cyndaquil at level 14.", "Cyndaquil", null, 0),
-  P(6, 157, "Typhlosion", ["fire"], "evolve", "Evolves from Quilava at level 36.", "Quilava", null, 0),
-  P(7, 158, "Totodile", ["water"], "starter", "Chosen as your starter from Professor Elm in New Bark Town.", null, null, 0),
-  P(8, 159, "Croconaw", ["water"], "evolve", "Evolves from Totodile at level 18.", "Totodile", null, 0),
-  P(9, 160, "Feraligatr", ["water"], "evolve", "Evolves from Croconaw at level 30.", "Croconaw", null, 0),
-  P(19, 161, "Sentret", ["normal"], "wild", "Common in the grass on Routes 29-30, right outside New Bark Town.", null, null, 0),
-  P(20, 162, "Furret", ["normal"], "evolve", "Evolves from Sentret at level 15.", "Sentret", null, 0),
-  P(15, 163, "Hoothoot", ["normal", "flying"], "wild", "Found on Routes 30-31 near Violet City — more common at night.", null, null, 1),
-  P(16, 164, "Noctowl", ["normal", "flying"], "evolve", "Evolves from Hoothoot at level 20.", "Hoothoot", null, 1),
-  P(30, 165, "Ledyba", ["bug", "flying"], "wild", "Found on Routes 30-31 in the morning.", null, "silver", 1),
-  P(31, 166, "Ledian", ["bug", "flying"], "evolve", "Evolves from Ledyba at level 18.", "Ledyba", "silver", 1),
-  P(32, 167, "Spinarak", ["bug", "poison"], "wild", "Found on Routes 30-31 at night.", null, "gold", 1),
-  P(33, 168, "Ariados", ["bug", "poison"], "evolve", "Evolves from Spinarak at level 22.", "Spinarak", "gold", 1),
-  P(39, 169, "Crobat", ["poison", "flying"], "evolve", "Evolves from Golbat through high friendship on level-up — no set level, just keep it happy (win battles, avoid fainting, use vitamins).", "Golbat", null, 1),
-  P(174, 170, "Chinchou", ["water", "electric"], "wild", "Found by surfing or fishing in the water inside Union Cave.", null, null, 2),
-  P(175, 171, "Lanturn", ["water", "electric"], "evolve", "Evolves from Chinchou at level 27.", "Chinchou", null, 2),
-  P(21, 172, "Pichu", ["electric"], "breed", "Not caught wild — hatch an Egg by leaving a Pikachu at the Day Care on Route 34.", null, null, 3),
-  P(40, 173, "Cleffa", ["normal"], "breed", "Not caught wild — hatch an Egg by leaving a Clefairy at the Day Care on Route 34.", null, null, 3),
-  P(43, 174, "Igglybuff", ["normal"], "breed", "Not caught wild — hatch an Egg by leaving a Jigglypuff at the Day Care on Route 34.", null, null, 3),
-  P(46, 175, "Togepi", ["normal"], "gift", "One-time gift: an Egg from Mr. Pokémon near New Bark Town, given back to you (now hatched) after your first badge.", null, null, 0),
-  P(47, 176, "Togetic", ["normal", "flying"], "evolve", "Evolves from Togepi through high friendship on level-up.", "Togepi", null, 0),
-  P(159, 177, "Natu", ["psychic", "flying"], "wild", "Found in the grass around the National Park (Routes 35-37).", null, null, 4),
-  P(160, 178, "Xatu", ["psychic", "flying"], "evolve", "Evolves from Natu at level 25.", "Natu", null, 4),
-  P(53, 179, "Mareep", ["electric"], "wild", "Found in the grass on Route 32, near Union Cave.", null, null, 2),
-  P(54, 180, "Flaaffy", ["electric"], "evolve", "Evolves from Mareep at level 15.", "Mareep", null, 2),
-  P(55, 181, "Ampharos", ["electric"], "evolve", "Evolves from Flaaffy at level 30.", "Flaaffy", null, 2),
-  P(86, 182, "Bellossom", ["grass"], "stone", "Evolves from Gloom using a Sun Stone (an alternate branch from Vileplume).", "Gloom", null, 2),
-  P(130, 183, "Marill", ["water"], "wild", "Found near water on Route 34, close to Goldenrod City.", null, null, 3),
-  P(131, 184, "Azumarill", ["water"], "evolve", "Evolves from Marill at level 18.", "Marill", null, 3),
-  P(106, 185, "Sudowoodo", ["rock"], "wild", "Blocks the path on Route 36 disguised as a tree — splash it with the Squirtbottle to reveal and battle it.", null, null, 4),
-  P(75, 186, "Politoed", ["water"], "trade", "Evolves from Poliwhirl by trading it while it holds a King's Rock.", "Poliwhirl", null, 1),
-  P(67, 187, "Hoppip", ["grass", "flying"], "wild", "Found in the grass on Route 32.", null, null, 1),
-  P(68, 188, "Skiploom", ["grass", "flying"], "evolve", "Evolves from Hoppip at level 18.", "Hoppip", null, 1),
-  P(69, 189, "Jumpluff", ["grass", "flying"], "evolve", "Evolves from Skiploom at level 27.", "Skiploom", null, 1),
-  P(122, 190, "Aipom", ["normal"], "wild", "Found in the trees around the National Park.", null, null, 4),
-  P(102, 191, "Sunkern", ["grass"], "wild", "Common in the grass around the National Park.", null, null, 4),
-  P(103, 192, "Sunflora", ["grass"], "stone", "Evolves from Sunkern using a Sun Stone.", "Sunkern", null, 4),
-  P(101, 193, "Yanma", ["bug", "flying"], "wild", "Found in the grass around the National Park.", null, null, 4),
-  P(56, 194, "Wooper", ["water", "ground"], "wild", "Found in the muddy grass on Routes 32-33, near Union Cave.", null, null, 2),
-  P(57, 195, "Quagsire", ["water", "ground"], "evolve", "Evolves from Wooper at level 20.", "Wooper", null, 2),
-  P(184, 196, "Espeon", ["psychic"], "stone", "Evolves from Eevee through high friendship, leveled up during the day.", "Eevee", null, 3),
-  P(185, 197, "Umbreon", ["dark"], "stone", "Evolves from Eevee through high friendship, leveled up at night.", "Eevee", null, 3),
-  P(208, 198, "Murkrow", ["dark", "flying"], "wild", "Found at night in the grass around the National Park and Route 33.", null, null, 4),
-  P(82, 199, "Slowking", ["water", "psychic"], "trade", "Evolves from Slowpoke by trading it while it holds a King's Rock.", "Slowpoke", null, 2),
-  P(214, 200, "Misdreavus", ["ghost"], "wild", "Found around Ecruteak City's Burned Tower and Tin Tower.", null, null, 5),
-  P(61, 201, "Unown", ["psychic"], "wild", "Found throughout the Ruins of Alph, near Violet City.", null, null, 1),
-  P(107, 202, "Wobbuffet", ["psychic"], "wild", "Found by fishing in a handful of specific ponds scattered across the Johto routes — not common, but not tied to one exact spot either.", null, null, 4),
-  P(147, 203, "Girafarig", ["normal", "psychic"], "wild", "Found in the grass on Route 43, near the Lake of Rage.", null, null, 8),
-  P(93, 204, "Pineco", ["bug"], "wild", "Found in the trees around the National Park.", null, null, 4),
-  P(94, 205, "Forretress", ["bug", "steel"], "evolve", "Evolves from Pineco at level 31.", "Pineco", null, 4),
-  P(52, 206, "Dunsparce", ["normal"], "wild", "Rare find inside Dark Cave, between Violet City and Blackthorn.", null, null, 1),
-  P(189, 207, "Gligar", ["ground", "flying"], "wild", "Found on Routes 45-46, near Blackthorn City.", null, "gold", 9),
-  P(63, 208, "Steelix", ["steel", "ground"], "trade", "Evolves from Onix by trading it while it holds a Metal Coat.", "Onix", null, 1),
-  P(123, 209, "Snubbull", ["normal"], "wild", "Found in the grass on Routes 38-39, near Olivine City.", null, null, 7),
-  P(124, 210, "Granbull", ["normal"], "evolve", "Evolves from Snubbull at level 23.", "Snubbull", null, 7),
-  P(161, 211, "Qwilfish", ["water", "poison"], "wild", "Found by surfing on Route 41, near the Whirl Islands.", null, null, 6),
-  P(111, 212, "Scizor", ["bug", "steel"], "trade", "Evolves from Scyther by trading it while it holds a Metal Coat.", "Scyther", null, 4),
-  P(166, 213, "Shuckle", ["bug", "rock"], "wild", "Rare find in mountain caves around the Ice Path and Route 44.", null, null, 9),
-  P(113, 214, "Heracross", ["bug", "fighting"], "wild", "Found in the trees around the National Park (Headbutt).", null, null, 4),
-  P(213, 215, "Sneasel", ["dark", "ice"], "wild", "Found inside the Ice Path, near Blackthorn City.", null, null, 9),
-  P(193, 216, "Teddiursa", ["normal"], "wild", "Found on Route 46, near Blackthorn City.", null, "gold", 9),
-  P(194, 217, "Ursaring", ["normal"], "evolve", "Evolves from Teddiursa at level 30.", "Teddiursa", "gold", 9),
-  P(211, 218, "Slugma", ["fire"], "wild", "Found around Route 42, near Mt. Mortar.", null, null, 8),
-  P(212, 219, "Magcargo", ["fire", "rock"], "evolve", "Evolves from Slugma at level 38.", "Slugma", null, 8),
-  P(191, 220, "Swinub", ["ice", "ground"], "wild", "Found around the Ice Path and Route 44.", null, null, 9),
-  P(192, 221, "Piloswine", ["ice", "ground"], "evolve", "Evolves from Swinub at level 33.", "Swinub", null, 9),
-  P(171, 222, "Corsola", ["water", "rock"], "wild", "Found by surfing or fishing around Olivine City and the southern coast.", null, null, 7),
-  P(172, 223, "Remoraid", ["water"], "wild", "Found by fishing around Olivine City's waters.", null, null, 7),
-  P(173, 224, "Octillery", ["water"], "evolve", "Evolves from Remoraid at level 25.", "Remoraid", null, 7),
-  P(190, 225, "Delibird", ["ice", "flying"], "wild", "Found inside the Ice Path.", null, "silver", 9),
-  P(197, 226, "Mantine", ["water", "flying"], "wild", "Found by surfing on Routes 40-41.", null, "gold", 9),
-  P(198, 227, "Skarmory", ["steel", "flying"], "wild", "Found on Route 45, near Blackthorn City.", null, "silver", 9),
-  P(209, 228, "Houndour", ["dark", "fire"], "wild", "Found at night around Route 42 and Route 7 (Kanto side), near Mt. Mortar.", null, null, 8),
-  P(210, 229, "Houndoom", ["dark", "fire"], "evolve", "Evolves from Houndour at level 24.", "Houndour", null, 8),
-  P(188, 230, "Kingdra", ["water", "dragon"], "trade", "Evolves from Seadra by trading it while it holds a Dragon Scale.", "Seadra", null, 6),
-  P(195, 231, "Phanpy", ["ground"], "wild", "Found on Route 46, near Blackthorn City.", null, "silver", 9),
-  P(196, 232, "Donphan", ["ground"], "evolve", "Evolves from Phanpy at level 25.", "Phanpy", "silver", 9),
-  P(216, 233, "Porygon2", ["normal"], "trade", "Evolves from Porygon by trading it while it holds an Up-Grade.", "Porygon", null, 3),
-  P(129, 234, "Stantler", ["normal"], "wild", "Found in the grass around Route 36 and the National Park.", null, null, 4),
-  P(157, 235, "Smeargle", ["normal"], "wild", "Rare find on Routes 33-36, near the National Park.", null, null, 4),
-  P(143, 236, "Tyrogue", ["fighting"], "gift", "One-time gift from the Karate Master's family inside Mt. Mortar, once you're strong enough to impress them.", null, null, 8),
-  P(146, 237, "Hitmontop", ["fighting"], "evolve", "Evolves from Tyrogue at level 20 if its Attack and Defense stats are equal.", "Tyrogue", null, 8),
-  P(152, 238, "Smoochum", ["ice", "psychic"], "breed", "Not caught wild — hatch an Egg by leaving a Jynx at the Day Care on Route 34.", null, null, 3),
-  P(154, 239, "Elekid", ["electric"], "breed", "Not caught wild — hatch an Egg by leaving an Electabuzz at the Day Care on Route 34.", null, null, 3),
-  P(150, 240, "Magby", ["fire"], "breed", "Not caught wild — hatch an Egg by leaving a Magmar at the Day Care on Route 34.", null, null, 3),
-  P(149, 241, "Miltank", ["normal"], "wild", "Found in the grass on Route 38, near Olivine City.", null, null, 7),
-  P(218, 242, "Blissey", ["normal"], "evolve", "Evolves from Chansey through high friendship on level-up.", "Chansey", null, 9),
-  P(238, 243, "Raikou", ["electric"], "legendary", "One of three roaming legendary beasts released from the Burned Tower — wanders Johto's routes at random once freed, so patience (and a good Repel strategy) matters more than a fixed location.", null, null, 6),
-  P(239, 244, "Entei", ["fire"], "legendary", "One of three roaming legendary beasts released from the Burned Tower — wanders Johto's routes at random once freed.", null, null, 6),
-  P(240, 245, "Suicune", ["water"], "legendary", "One of three roaming legendary beasts released from the Burned Tower — wanders Johto's routes at random once freed.", null, null, 6),
-  P(244, 246, "Larvitar", ["rock", "ground"], "wild", "Found near the summit of Mt. Silver — only accessible after becoming Champion.", null, null, 12),
-  P(245, 247, "Pupitar", ["rock", "ground"], "evolve", "Evolves from Larvitar at level 30.", "Larvitar", null, 12),
-  P(246, 248, "Tyranitar", ["rock", "dark"], "evolve", "Evolves from Pupitar at level 55.", "Pupitar", null, 12),
-  P(247, 249, "Lugia", ["psychic", "flying"], "legendary", "One-time legendary encounter deep in the Whirl Islands, reached with the Silver Wing — a late-game quest.", null, null, 12),
-  P(248, 250, "Ho-oh", ["fire", "flying"], "legendary", "One-time legendary encounter atop the Tin Tower, reached with the Rainbow Wing — a late-game quest.", null, null, 12),
-  P(251, 251, "Celebi", ["psychic", "grass"], "legendary", "Not obtainable through normal gameplay — historically available only through special events.", null, null, 12),
-];
 
 const CATEGORY_ORDER = {
   starter: 0, wild: 1, gift: 1, fossil: 1, "trade-only": 1,
   evolve: 2, stone: 2, trade: 2, rare: 3, legendary: 3,
 };
 
-
-const REGION_POKEDEX = {
-    kanto: POKEDEX_GEN1,
-    johto: POKEDEX_GEN2,
-};
-
-const REGION_STAGES = {
-  kanto: STAGES_KANTO,
-  johto: STAGES_JOHTO,
-};
-
-
-const BY_NAME = Object.fromEntries(
-  Object.values(REGION_POKEDEX).flat().map((m) => [m.name, m])
-);
-
-//gets data of entire pokemon evo
-
-function getLineage(mon) {
-  const chain = [];
-  let current = mon;
-  let guard = 0;
-  while (current.evolvesFrom && guard < 5) {
-    const prev = BY_NAME[current.evolvesFrom];
-    if (!prev) break;
-    chain.unshift(prev);
-    current = prev;
-    guard += 1;
-  }
-  return chain;
-}
-
-//handles sprite and type icon rendering
-
-function officialArt(id) {
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
-}
-function defaultSprite(id) {
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
-}
-
-function PokemonSprite({real_id, name, className }) {
+function PokemonSprite({ real_id, name, className, animated = false }) {
   const [stage, setStage] = useState(0);
-  if (stage >= 2) {
+
+  // If "animated" is false, we skip step 0 (the GIF) and jump straight to step 1
+  const currentStep = animated ? stage : stage + 1;
+
+  // Step 3 or higher means all images failed, show initials
+  if (currentStep >= 3) {
     return (
       <div className={`pg-sprite-fallback ${className || ""}`}>
         {name ? name.slice(0, 2).toUpperCase() : "?"}
       </div>
     );
   }
+
+  // Determine the image URL based on the current step
+  let imageUrl = "";
+  if (currentStep === 0) {
+    // Step 0: Try the animated GIF
+    imageUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/${real_id}.gif`;
+  } else if (currentStep === 1) {
+    // Step 1: Try Official Art
+    imageUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${real_id}.png`;
+  } else {
+    // Step 2: Try Default Sprite
+    imageUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${real_id}.png`;
+  }
+
   return (
     <img
-      src={stage === 0 ? officialArt(real_id) : defaultSprite(real_id)}
+      src={imageUrl}
       alt={name}
       draggable={false}
       className={`pg-sprite-img ${className || ""}`}
@@ -547,7 +257,7 @@ const generateRandom = (min, max) => {
   };
 
 //random pokemon generated per web refresh
-const HERO_PREVIEW_IDS = [generateRandom(1,251), generateRandom(1,251), generateRandom(1,251), generateRandom(1,251), generateRandom(1,251)];
+const HERO_PREVIEW_IDS = [generateRandom(1,649), generateRandom(1,649), generateRandom(1,649), generateRandom(1,649), generateRandom(1,649)];
  
 function HomeScreen({onStart}) {
   const [rotation, setRotation] = useState(0);
@@ -578,7 +288,7 @@ function HomeScreen({onStart}) {
         <div className="pg-hero-copy">
           <div className="pg-eyebrow">
             <span className="pg-eyebrow-dot" />
-            GEN I-II NOW · SUPPORT FOR GENS III-IX COMING SOON
+            GEN I-V NOW · SUPPORT FOR GENS VI-IX COMING SOON
           </div>
           <h1 className="pg-hero-title">
             The only database
@@ -599,12 +309,12 @@ function HomeScreen({onStart}) {
  
           <div className="pg-stat-row">
             <div className="pg-stat">
-              <div className="pg-stat-num">251</div>
-              <div className="pg-stat-label">Pokémon mapped · Gen I-II</div>
+              <div className="pg-stat-num">649</div>
+              <div className="pg-stat-label">Pokémon mapped · Gen I-V</div>
             </div>
             <div className="pg-stat-divider" />
             <div className="pg-stat">
-              <div className="pg-stat-num">6</div>
+              <div className="pg-stat-num">19</div>
               <div className="pg-stat-label">Versions supported</div>
             </div>
             <div className="pg-stat-divider" />
@@ -643,7 +353,7 @@ function HomeScreen({onStart}) {
 
 //game selection screen
 
-function GameSelectScreen({ onSelect, onBack}) {
+function GameSelectScreen({ onSelect, onBack }) {
   const [selectedRegionId, setSelectedRegionId] = useState(REGIONS[0].id);
   const region = REGIONS.find((r) => r.id === selectedRegionId) || REGIONS[0];
 
@@ -681,7 +391,16 @@ function GameSelectScreen({ onSelect, onBack}) {
         {region.available ? (
           <div className="pg-game-row">
             {region.games.map((game) => (
-              <button key={game.id} className="pg-game-btn" onClick={() => onSelect({ ...game, regionId: region.id })}>
+            <button 
+              key={game.id} 
+              className="pg-game-btn" 
+              onClick={() => onSelect({ 
+                id: game.id,             // Must be "platinum" so region.games.find matches it!
+                label: game.label,
+                regionId: region.id,     // Must be "sinnoh"
+                pokedexSlug: game.dexId  // Pass the slug cleanly here
+              })}
+            >
                 <Gamepad2 size={15} className="pg-accent-icon" />
                 <span>{game.label}</span>
                 <ChevronRight size={14} className="pg-game-btn-chevron" />
@@ -691,9 +410,7 @@ function GameSelectScreen({ onSelect, onBack}) {
         ) : (
           <div className="pg-region-empty">
             <p>
-              <b>{region.region}</b> Pokémon data isn't mapped yet — Kanto is the
-              only region with full location and evolution data right now. Pick
-              it from the dropdown above to get started.
+              <b>{region.region}</b> Pokémon data isn't mapped yet.
             </p>
           </div>
         )}
@@ -716,12 +433,15 @@ function PokemonCard({mon, selected, onToggle, disabled}) {
           <Check size={12} color="#fff" strokeWidth={3} />
         </span>
       )}
-      <span className="pg-card-name">{mon.name}</span>
+      <span className="pg-card-name">{capitalize(mon.name)}</span>
       <div className="pg-card-sprite-wrap">
-        <PokemonSprite real_id={mon.real_id} name={mon.name} className="pg-card-sprite" />
+        <PokemonSprite real_id={mon.nationalId} name={mon.name} className="pg-card-sprite" />
       </div>
       <div className="pg-card-footer">
-        <span className="pg-card-num">#{String(mon.display_id).padStart(3, "0")}</span>
+        {/* Check if displayId exists; if not, show a custom label */}
+        <span className="pg-card-num">
+          {mon.displayId ? `#${String(mon.displayId).padStart(3, "0")}` : "Nat Dex"}
+        </span>
         <div className="pg-card-types">
           {mon.types.map((ty) => <TypeBadge key={ty} type={ty} />)}
         </div>
@@ -730,25 +450,69 @@ function PokemonCard({mon, selected, onToggle, disabled}) {
   );
 }
 
+
 function GridScreen({game, onBack, team, setTeam, onGenerate}) {
   const [search, setSearch] = useState("");
-  const pokedex = REGION_POKEDEX[game.regionId] || [];
-  const regionLabel = REGIONS.find((r) => r.id === game.regionId)?.region || "";
+  const [pokedex, setPokedex] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const regionLabel = game.label || ""; 
+
+  // Fetch API data when the component mounts or the game changes
+ // Fetch API data when the component mounts or the game changes
+useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+
+    // Pass region.id and game.id so regionalDex.js can correctly look up Platinum
+    getRegionalDexList(game.regionId, game.id)
+      .then((data) => {
+        if (isMounted) {
+          setPokedex(data || []);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error("API Error:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [game.regionId, game.id]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return pokedex;
-    return pokedex.filter((m) => m.name.toLowerCase().includes(q) || String(m.display_id).includes(q));
+    return pokedex.filter((m) => m.name.toLowerCase().includes(q) || String(m.displayId).includes(q));
   }, [search, pokedex]);
 
   const toggle = useCallback((mon) => {
     setTeam((prev) => {
-      const exists = prev.find((p) => p.real_id === mon.real_id);
-      if (exists) return prev.filter((p) => p.real_id !== mon.real_id);
-      if (prev.length >= MAX_TEAM) return prev;
+      const exists = prev.find((p) => p.nationalId === mon.nationalId);
+      if (exists) return prev.filter((p) => p.nationalId !== mon.nationalId);
+      if (prev.length >= 6) return prev; 
       return [...prev, mon];
     });
   }, [setTeam]);
+
+  if (loading) {
+    return (
+      <div className="pg-container pg-page pg-page-with-tray">
+        <div className="pg-page-head">
+          <button className="pg-back-link" onClick={onBack}>
+            <ArrowLeft size={14} /> Change game
+          </button>
+          <div className="pg-eyebrow">STEP 02 / 03 — BUILD YOUR PARTY</div>
+          <h1 className="pg-page-title">Loading Pokédex...</h1>
+          <p className="pg-page-sub">Fetching live {game.label} data from PokéAPI.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pg-container pg-page pg-page-with-tray">
@@ -762,7 +526,7 @@ function GridScreen({game, onBack, team, setTeam, onGenerate}) {
           Playing <b>{game.label}</b> — showing the full {regionLabel} Pokédex.
         </p>
       </div>
-
+ 
       <div className="pg-search-wrap">
         <Search size={16} className="pg-search-icon" />
         <input
@@ -772,23 +536,23 @@ function GridScreen({game, onBack, team, setTeam, onGenerate}) {
           placeholder="Search by name or Pokédex number..."
         />
       </div>
-
+ 
       {filtered.length === 0 ? (
         <div className="pg-empty">No Pokémon match "{search}".</div>
       ) : (
         <div className="pg-grid">
           {filtered.map((mon) => (
             <PokemonCard
-              key={mon.real_id}
+              key={mon.nationalId}
               mon={mon}
-              selected={!!team.find((p) => p.real_id === mon.real_id)}
+              selected={!!team.find((p) => p.nationalId === mon.nationalId)}
               onToggle={toggle}
               disabled={team.length >= MAX_TEAM}
             />
           ))}
         </div>
       )}
-
+ 
       <div className="pg-tray">
         <div className="pg-container pg-tray-inner">
           <div className="pg-tray-slots">
@@ -796,7 +560,7 @@ function GridScreen({game, onBack, team, setTeam, onGenerate}) {
               const mon = team[i];
               return (
                 <div key={i} className={`pg-tray-slot ${mon ? "pg-tray-slot-filled" : ""}`}>
-                  {mon && <PokemonSprite real_id={mon.real_id} name={mon.name} className="pg-tray-sprite" />}
+                  {mon && <PokemonSprite real_id={mon.nationalId} name={capitalize(mon.name)} className="pg-tray-sprite" />}
                 </div>
               );
             })}
@@ -828,52 +592,61 @@ function getHeadline(mon) {
 }
 
 function LineageStep({ mon, stages }) {
+  const stageInfo = (stages && stages[mon.stage]) || { label: "Base Stage", note: "" };
+
   return (
     <div className="pg-lineage-step">
+      {/* 1. Here is the restored wrapper that shrinks the sprite to 40x40! */}
       <div className="pg-lineage-sprite-box">
-        <PokemonSprite real_id={mon.real_id} name={mon.name} className="pg-lineage-sprite" />
+        <PokemonSprite 
+          real_id={mon.nationalId} 
+          name={mon.name} 
+          className="pg-lineage-sprite" 
+          animated = {true}
+        />
       </div>
+      
+      {/* 2. Using your exact original CSS classes for the text layout */}
       <div className="pg-lineage-body">
         <div className="pg-lineage-name-row">
-          <span className="pg-lineage-name">{mon.name}</span>
-          <span className="pg-lineage-stage">{stages[mon.stage].label}</span>
+          <span className="pg-lineage-name">{mon.name ? mon.name.charAt(0).toUpperCase() + mon.name.slice(1) : ""}</span>
+          {" "}
+          <span className="pg-lineage-stage" title={stageInfo.note}>
+            {stageInfo.label}
+          </span>
         </div>
+        
+        {/* 3. The location info text */}
         <p className="pg-lineage-text">
-          <b>{getHeadline(mon)}.</b> {mon.detail}
-          {mon.exclusiveTo && ` (${titleCase(mon.exclusiveTo)}-version wild encounter.)`}
+          {mon.detail ? mon.detail : "Location unknown."}
         </p>
       </div>
     </div>
   );
 }
 
-function ReportCard({ mon, index, game }) {
-  const exclusiveWarning = mon.exclusiveTo && mon.exclusiveTo !== game.id && game.id !== "yellow";
-  const exclusiveOk = mon.exclusiveTo && game.id === "yellow";
+function ReportCard({ mon, index, game, stages }) {
   const headline = getHeadline(mon);
-  const lineage = useMemo(() => getLineage(mon), [mon]);
-  const stages = REGION_STAGES[game.regionId] || STAGES_KANTO;
-  const stageInfo = stages[mon.stage];
+  const stageInfo = stages[mon.stage] || { label: "Unknown Stage", note: "" };  
 
   return (
+    
     <div className="pg-report-card">
       <div className="pg-report-left">
         <span className="pg-report-index">{String(index + 1).padStart(2, "0")}</span>
         <div className="pg-report-sprite-box">
-          <PokemonSprite real_id={mon.real_id} name={mon.name} className="pg-report-sprite" />
+          <PokemonSprite real_id={mon.nationalId} name={capitalize(mon.name)} className="pg-report-sprite" animated={true} />
+        </div>
+        {/* ADD THE NAME HERE */}
+        <div className="pg-report-name" style={{ fontSize: "14px", marginTop: "4px", textAlign: "center" }}>
+          {capitalize(mon.name)}
         </div>
         <span className="pg-report-stage-pill" title={stageInfo.note}>{stageInfo.label}</span>
       </div>
 
       <div className="pg-report-body">
-        <div className="pg-report-title-row">
-          <h3 className="pg-report-name">{mon.name}</h3>
-          <span className="pg-report-num">#{String(mon.display_id).padStart(3, "0")}</span>
-          <div className="pg-card-types">
-            {mon.types.map((ty) => <TypeBadge key={ty} type={ty} />)}
-          </div>
-        </div>
-
+        {/* ... Title Row UI remains exactly the same, but use mon.displayId ... */}
+        
         <div className="pg-report-detail">
           <div className="pg-report-headline">
             <MapPin size={13} className="pg-good-icon" />
@@ -882,30 +655,15 @@ function ReportCard({ mon, index, game }) {
           <p className="pg-report-text">{mon.detail}</p>
         </div>
 
-        {exclusiveWarning && (
-          <div className="pg-note pg-note-warning">
-            <Info size={13} />
-            <p>
-              This one's exclusive to <b>{titleCase(mon.exclusiveTo)}</b> version in the wild.
-              On {game.label}, you'll need to trade with someone playing {titleCase(mon.exclusiveTo)}.
-            </p>
-          </div>
-        )}
-        {exclusiveOk && (
-          <div className="pg-note">
-            <Info size={13} />
-            <p>Version-exclusive in Red/Blue, but obtainable directly in Yellow.</p>
-          </div>
-        )}
-
-        {lineage.length > 0 && (
+        {/* The API injects lineage directly into the mon object! */}
+        {mon.lineage && mon.lineage.length > 0 && (
           <div className="pg-lineage">
             <p className="pg-lineage-title">
               Get there first — full line before {mon.name}:
             </p>
             <div className="pg-lineage-steps">
-              {lineage.map((anc) => (
-                <LineageStep key={anc.real_id} mon={anc} stages={stages} />
+              {mon.lineage.map((anc) => (
+                <LineageStep key={anc.nationalId} mon={anc} stages={stages} />
               ))}
             </div>
           </div>
@@ -916,18 +674,25 @@ function ReportCard({ mon, index, game }) {
 }
 
 function ReportScreen({ team, game, onBack, onRestart }) {
-  const ordered = useMemo(() => {
-    return [...team].sort((a, b) => {
-      if (a.stage !== b.stage) return a.stage - b.stage;
-      const ca = CATEGORY_ORDER[a.category] ?? 9;
-      const cb = CATEGORY_ORDER[b.category] ?? 9;
-      if (ca !== cb) return ca - cb;
-      return a.real_id - b.real_id;
-    });
-  }, [team]);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Extract just the names to pass to our API utility
+    const speciesNames = team.map(mon => mon.name);
+    
+    buildTeamReport(speciesNames, game.regionId, game.id)
+      .then(data => {
+        setReport(data);
+        setLoading(false);
+      })
+      .catch(console.error);
+  }, [team, game]);
+
+  if (loading || !report) return <div className="pg-container pg-page">Loading route guide...</div>;
 
   return (
-    <div className="pg-container pg-page pg-page-narrow">
+    <div className="pg-container pg-page pg-page-timeline">
       <div className="pg-page-head">
         <button className="pg-back-link" onClick={onBack}>
           <ArrowLeft size={14} /> Edit team
@@ -942,16 +707,19 @@ function ReportScreen({ team, game, onBack, onRestart }) {
           knowledge; treat rare or obscure spawns as approximate.
         </p>
       </div>
-
-      <div className="pg-report-list">
-        {ordered.map((mon, i) => (
-          <ReportCard key={mon.real_id} mon={mon} index={i} game={game} />
+      <br/>
+      <div className="pg-timeline">
+        {/* buildTeamReport already sorts the team for you */}
+        {report.team.map((mon, i) => (
+          <div key={mon.nationalId} className={`pg-timeline-row ${i % 2 === 0 ? "pg-timeline-left" : "pg-timeline-right"}`}>
+            <span className={`pg-timeline-dot ${i === 0 ? "pg-timeline-dot-first" : ""}`} />
+            <div className="pg-timeline-card-wrap">
+               {/* Pass down the stages object fetched from the API */}
+              <ReportCard mon={mon} index={i} game={game} stages={report.stages} />
+            </div>
+          </div>
         ))}
       </div>
-        <br/>
-      <button className="pg-btn pg-btn-secondary" onClick={onRestart}>
-        <RotateCcw size={14} /> Start a new team
-      </button>
     </div>
   );
 }

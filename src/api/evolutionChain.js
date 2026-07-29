@@ -22,6 +22,18 @@ export function describeEvolution(detail, fromName) {
         detail: `Evolves from ${fromName} through high friendship${time}.`,
       };
     }
+    // Gen IV introduced location-gated evolutions (Leafeon/Glaceon near
+    // Moss/Ice Rocks, Magnezone/Probopass at magnetic fields) — PokeAPI
+    // exposes this as a `location` field on the evolution detail rather
+    // than a level or item, so it needs its own case or it silently falls
+    // through to the generic "on level-up" fallback with no explanation
+    // of WHERE.
+    if (detail.location) {
+      return {
+        category: "evolve",
+        detail: `Evolves from ${fromName} on level-up near ${humanize(detail.location.name)}.`,
+      };
+    }
     if (detail.min_level != null) {
       return {
         category: "evolve",
@@ -42,6 +54,15 @@ export function describeEvolution(detail, fromName) {
       return {
         category: "trade",
         detail: `Evolves from ${fromName} by trading it while it holds a ${humanize(detail.held_item.name)}.`,
+      };
+    }
+    // Karrablast <-> Shelmet is the one case where "trade to another
+    // player" isn't enough info — it specifically needs to be traded FOR
+    // the other species, not just traded at all.
+    if (detail.trade_species) {
+      return {
+        category: "trade",
+        detail: `Evolves from ${fromName} by trading it specifically for a ${humanize(detail.trade_species.name)}.`,
       };
     }
     return {
