@@ -1,5 +1,5 @@
 # Poké Guide V2
-Currently only Gen I-II support but the resource works as follows:
+Currently only Gen I-V support but the resource works as follows:
 1) Select your game version
 2) Choose up to 6 pokémon and create your party
 3) Get instant instructions on where and how to get your pokémon chronologically
